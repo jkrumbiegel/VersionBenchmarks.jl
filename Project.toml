@@ -1,0 +1,13 @@
+name = "VersionBenchmarks"
+uuid = "c924dc18-ec2d-44e2-b2d5-369b8b4f8e2e"
+authors = ["Julius Krumbiegel <julius.krumbiegel@gmail.com> and contributors"]
+version = "0.1.0"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
