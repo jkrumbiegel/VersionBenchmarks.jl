@@ -3,6 +3,11 @@ uuid = "c924dc18-ec2d-44e2-b2d5-369b8b4f8e2e"
 authors = ["Julius Krumbiegel <julius.krumbiegel@gmail.com> and contributors"]
 version = "0.1.0"
 
+[deps]
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
+GridLayoutBase = "3955a311-db13-416c-9275-1d80ed98e5e9"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+
 [compat]
 julia = "1"
 
