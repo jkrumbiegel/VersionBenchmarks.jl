@@ -9,6 +9,7 @@ GridLayoutBase = "3955a311-db13-416c-9275-1d80ed98e5e9"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [compat]
+GridLayoutBase = "0.6"
 julia = "1"
 
 [extras]
