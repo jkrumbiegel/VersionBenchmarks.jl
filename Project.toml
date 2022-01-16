@@ -4,9 +4,8 @@ authors = ["Julius Krumbiegel <julius.krumbiegel@gmail.com> and contributors"]
 version = "0.1.0"
 
 [deps]
-Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
-GridLayoutBase = "3955a311-db13-416c-9275-1d80ed98e5e9"
-Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 
 [compat]
 julia = "1"
