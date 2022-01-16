@@ -3,7 +3,11 @@ module VersionBenchmarks
 using Dates
 using DataFrames
 
-function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVector{String}; repetitions = 1, directory = mktempdir())
+function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVector{String};
+        repetitions = 1,
+        directory = mktempdir(),
+        julia_exes = ["julia"],
+    )
     
     p = pwd()
     tmpdir = mktempdir()
@@ -31,7 +35,7 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
         
             date = now()
         
-            for file in files, repetition in 1:repetitions
+            for file in files, julia_exe in julia_exes, repetition in 1:repetitions
 
                 resultpath, resultio = mktemp()
 
@@ -51,21 +55,26 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
                 end
                 """
 
-                code = replace(
-                    read(file, String),
+                testcode = read(file, String)
+                modified_testcode = replace(
+                    testcode,
                     r"#\s+(\w[\w ]*\w)\s+@timed" => s"@_timed \"\1\""
                 )
 
-                @show code
-                fullcode = join([basecode, code], "\n")
+                fullcode = join([basecode, modified_testcode], "\n")
 
                 path, io = mktemp()
                 open(path, "w") do file
                     println(file, fullcode)
                 end
-                run(`julia $path`)
+
+                juliaversion = read(`$julia_exe -e 'println(VERSION)'`, String) |> strip
+
+                # execute the modified code, this should write results to the temp file at `resultpath`
+                run(`$julia_exe $path`)
 
                 for line in readlines(resultpath)
+                    # the file should only have lines with serialized NamedTuples
                     lineresult = Dict(pairs(eval(Meta.parse(line))))
                     lineresult[:version] = version
                     lineresult[:file] = file
@@ -73,6 +82,7 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
                     lineresult[:commit_date] = commit_date
                     lineresult[:commit] = commit
                     lineresult[:repetition] = repetition
+                    lineresult[:juliaversion] = juliaversion
                     push!(df, lineresult, cols = :union)
                 end
             end
