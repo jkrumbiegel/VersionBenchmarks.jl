@@ -2,6 +2,7 @@ module VersionBenchmarks
 
 using Dates
 using DataFrames
+using Statistics: mean
 
 function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVector{String};
         repetitions = 1,
@@ -13,6 +14,8 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
     tmpdir = mktempdir()
 
     df = DataFrame()
+
+    date = now()
 
     try
         @info "copying directory"
@@ -32,9 +35,7 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
                 "yyyy-mm-dd HH:MM:SS")
 
             commit = strip(read(`git rev-parse --short HEAD`, String))
-        
-            date = now()
-        
+                
             for file in files, julia_exe in julia_exes, repetition in 1:repetitions
 
                 resultpath, resultio = mktemp()
@@ -68,7 +69,7 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
                     println(file, fullcode)
                 end
 
-                juliaversion = read(`$julia_exe -e 'println(VERSION)'`, String) |> strip
+                juliaversion = read(`$julia_exe -e 'print(VERSION)'`, String)
 
                 # execute the modified code, this should write results to the temp file at `resultpath`
                 run(`$julia_exe $path`)
@@ -97,5 +98,28 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
     return df
 end
 
+function comparison(df, reference_version = nothing)
+    df2 = select(df, ["version", "repetition", "name", "time", "allocations", "gctime"])
+    df3 = combine(
+        groupby(df2, ["version", "name"]),
+        ["time", "allocations", "gctime"] .=> mean,
+        renamecols = false
+    )
+    reference_version = something(reference_version, first(df3.version))
+
+    function normalize(versions, values)
+        i = findfirst(==(reference_version), versions)
+        values ./ values[i]
+    end
+
+    sort(
+        transform(
+            groupby(df3, :name),
+            vcat.(:version, [:time, :allocations, :gctime]) .=> normalize .=>
+                [:time, :allocations, :gctime]
+        ),
+        :name
+    )
+end
 
 end
