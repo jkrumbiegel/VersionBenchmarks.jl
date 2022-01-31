@@ -18,7 +18,7 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
     date = now()
 
     try
-        @info "copying directory"
+        @info "copying repository to temp directory"
         pkgdir = joinpath(tmpdir, "package")
         cp(devdir, pkgdir)
         @info "directory copied"
