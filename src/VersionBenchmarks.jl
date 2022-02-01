@@ -2,7 +2,7 @@ module VersionBenchmarks
 
 using Dates
 using DataFrames
-using Statistics: mean
+using Statistics: mean, std
 
 function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVector{String};
         repetitions = 1,
@@ -54,6 +54,8 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
                 run(`$julia_exe -e $code`)
 
                 for file in files, repetition in 1:repetitions
+
+                    @info "Repetition $repetition for file \"$file\""
 
                     resultpath, resultio = mktemp()
 
@@ -134,6 +136,11 @@ function comparison(df, reference_version = nothing)
         ),
         :name
     )
+end
+
+function summarize_repetitions(df)
+    gdf = groupby(df, [:version, :name, :julia])
+    combine(gdf, :repetition => (x -> length(x)) => :n, [:time :allocations :gctime] .=> [mean, std, minimum, maximum])
 end
 
 end
