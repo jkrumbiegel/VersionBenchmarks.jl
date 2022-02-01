@@ -35,56 +35,70 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
                 "yyyy-mm-dd HH:MM:SS")
 
             commit = strip(read(`git rev-parse --short HEAD`, String))
-                
-            for file in files, julia_exe in julia_exes, repetition in 1:repetitions
-
-                resultpath, resultio = mktemp()
-
-                basecode = """
-                using Pkg
-                pkg"activate --temp"
-                Pkg.add(path = "$pkgdir")
-                Pkg.precompile()
-
-                macro _timed(name, expr)
-                    quote
-                        io = open("$resultpath", "a")
-                        timed = @timed(\$(esc(expr)))
-                        println(io, (name = \$name, time = timed.time, allocations = timed.bytes, gctime = timed.gctime))
-                        close(io)
-                    end
-                end
-                """
-
-                testcode = read(file, String)
-                modified_testcode = replace(
-                    testcode,
-                    r"#\s+(\w[\w ]*\w)\s+@timed" => s"@_timed \"\1\""
-                )
-
-                fullcode = join([basecode, modified_testcode], "\n")
-
-                path, io = mktemp()
-                open(path, "w") do file
-                    println(file, fullcode)
-                end
+            
+            for julia_exe in julia_exes
 
                 juliaversion = read(`$julia_exe -e 'print(VERSION)'`, String)
 
-                # execute the modified code, this should write results to the temp file at `resultpath`
-                run(`$julia_exe $path`)
+                # create a directory for the environment in which to install the version
+                tmpenvdir = mktempdir()
 
-                for line in readlines(resultpath)
-                    # the file should only have lines with serialized NamedTuples
-                    lineresult = Dict(pairs(eval(Meta.parse(line))))
-                    lineresult[:version] = version
-                    lineresult[:file] = file
-                    lineresult[:date] = date
-                    lineresult[:commit_date] = commit_date
-                    lineresult[:commit] = commit
-                    lineresult[:repetition] = repetition
-                    lineresult[:juliaversion] = juliaversion
-                    push!(df, lineresult, cols = :union)
+                code = """
+                using Pkg
+                Pkg.activate("$tmpenvdir")
+                Pkg.add(path = "$pkgdir")
+                Pkg.precompile()
+                """
+
+                @info "Setting up environment for $version and julia version $juliaversion"
+                run(`$julia_exe -e $code`)
+
+                for file in files, repetition in 1:repetitions
+
+                    resultpath, resultio = mktemp()
+
+                    basecode = """
+                    using Pkg
+                    Pkg.activate("$tmpenvdir")
+
+                    macro _timed(name, expr)
+                        quote
+                            io = open("$resultpath", "a")
+                            timed = @timed(\$(esc(expr)))
+                            println(io, (name = \$name, time = timed.time, allocations = timed.bytes, gctime = timed.gctime))
+                            close(io)
+                        end
+                    end
+                    """
+
+                    testcode = read(file, String)
+                    modified_testcode = replace(
+                        testcode,
+                        r"#\s+(\w[\w ]*\w)\s+@timed" => s"@_timed \"\1\""
+                    )
+
+                    fullcode = join([basecode, modified_testcode], "\n")
+
+                    path, io = mktemp()
+                    open(path, "w") do file
+                        println(file, fullcode)
+                    end
+
+                    # execute the modified code, this should write results to the temp file at `resultpath`
+                    run(`$julia_exe $path`)
+
+                    for line in readlines(resultpath)
+                        # the file should only have lines with serialized NamedTuples
+                        lineresult = Dict(pairs(eval(Meta.parse(line))))
+                        lineresult[:version] = version
+                        lineresult[:file] = file
+                        lineresult[:date] = date
+                        lineresult[:commit_date] = commit_date
+                        lineresult[:commit] = commit
+                        lineresult[:repetition] = repetition
+                        lineresult[:juliaversion] = juliaversion
+                        push!(df, lineresult, cols = :union)
+                    end
                 end
             end
         end
