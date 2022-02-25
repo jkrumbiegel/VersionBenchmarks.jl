@@ -2,7 +2,7 @@ module VersionBenchmarks
 
 using Dates
 using DataFrames
-using Statistics: mean, std
+using Statistics: mean, std, median
 import AlgebraOfGraphics
 const AoG = AlgebraOfGraphics
 import CairoMakie
@@ -10,6 +10,8 @@ import CairoMakie
 function __init__()
     CairoMakie.activate!(px_per_unit = 2)
 end
+
+run_without_std(cmd) = run(pipeline(cmd, stderr = devnull, stdout = devnull))
 
 function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVector{String};
         repetitions = 1,
@@ -25,10 +27,10 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
     date = now()
 
     try
-        @info "copying repository to temp directory"
+        @info "Copying repository to temp directory."
         pkgdir = joinpath(tmpdir, "package")
         cp(devdir, pkgdir)
-        @info "directory copied"
+        @info "Directory copied."
 
         cd(pkgdir)
 
@@ -36,19 +38,20 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
         # version is blocked in time, which should give better robustness against
         # performance fluctuations of the system over time
         for repetition in 1:repetitions
+            @info "Repetition $repetition of $repetitions."
             for julia_exe in julia_exes
+                juliaversion = read(`$julia_exe -e 'print(VERSION)'`, String)
+                @info "Julia version $juliaversion"
                 for version in versions
-                    @info "checking out $version"
+                    @info "Checking out \"$version\"."
                     # -f to throw away possible changes
-                    run(`git checkout -f $version --`)
+                    run_without_std(`git checkout -f $version --`)
                 
                     commit_date = DateTime(
                         strip(String(read(`git show -s --format=%ci`)))[1:end-6],
                         "yyyy-mm-dd HH:MM:SS")
         
                     commit = strip(read(`git rev-parse --short HEAD`, String))
-
-                    juliaversion = read(`$julia_exe -e 'print(VERSION)'`, String)
 
                     # create a directory for the environment in which to install the version
                     tmpenvdir = mktempdir()
@@ -61,12 +64,12 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
                     Pkg.precompile()
                     """
 
-                    @info "Setting up environment for $version and julia version $juliaversion"
-                    run(`$julia_exe -e $code`)
+                    @info "Preparing Julia environment."
+                    run_without_std(`$julia_exe -e $code`)
 
                     for file in files
 
-                        @info "Repetition $repetition for file \"$file\""
+                        @info "Executing file \"$file\"."
 
                         resultpath, resultio = mktemp()
 
@@ -101,7 +104,7 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
                         end
 
                         # execute the modified code, this should write results to the temp file at `resultpath`
-                        run(`$julia_exe $path`)
+                        run_without_std(`$julia_exe $path`)
 
                         for line in readlines(resultpath)
                             # the file should only have lines with serialized NamedTuples
