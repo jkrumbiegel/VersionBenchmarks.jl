@@ -1,11 +1,12 @@
-# using GridLayoutBase
-@timed using GridLayoutBase
+@vbtime "using GridLayoutBase" begin
+    using GridLayoutBase
+end
 
-# GridLayout constructor
-@timed GridLayout()
+@vbtime "GridLayout constructor" begin
+    GridLayout()
+end
 
-# Big GridLayout
-@timed let
+@vbtime "Big GridLayout" let
     gl = GridLayout()
     for i in 1:10, j in 1:10, k in 1:10
         gl[i, j] = GridLayout()

@@ -21,14 +21,16 @@ Each test file is run once per repetition, with code versions and julia versions
 A code file can look like this:
 
 ```julia
-# using
-@timed using MyPackage
+@vbtime "using the package" begin
+    using MyPackage
+end
 
-# a computation
-@timed MyPackage.heavy_computation()
+@vbtime "a heavy computation" begin
+    MyPackage.heavy_computation()
+end
 ```
 
-The `@timed` macros are then replaced with internal VersionBenchmarks macros that do almost the same thing and save timing info in a file.
+The `@vbtime` macros save timing, allocation and gctime info in a file.
 The results are then passed back in a `DataFrame`.
 
 You can call these functions on it:

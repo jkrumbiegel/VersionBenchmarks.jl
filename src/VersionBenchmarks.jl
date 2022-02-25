@@ -74,29 +74,26 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
                         resultpath, resultio = mktemp()
 
                         basecode = """
-                        using Pkg
-                        Pkg.activate("$tmpenvdir")
+                            using Pkg
+                            Pkg.activate("$tmpenvdir")
 
-                        macro _timed(name, expr)
-                            quote
-                                io = open("$resultpath", "a")
-                                @timed 1 + 1
-                                tstart = time_ns()
-                                timed = @timed(\$(esc(expr)))
-                                dt = (time_ns() - tstart) / 1_000_000_000
-                                println(io, (name = \$name, time = dt, timedtime = timed.time, allocations = timed.bytes, gctime = timed.gctime))
-                                close(io)
+                            macro vbtime(name, expr)
+                                @assert name isa String
+                                quote
+                                    io = open("$resultpath", "a")
+                                    @timed 1 + 1
+                                    tstart = time_ns()
+                                    timed = @timed(\$(esc(expr)))
+                                    dt = (time_ns() - tstart) / 1_000_000_000
+                                    println(io, (name = \$name, time = dt, timedtime = timed.time, allocations = timed.bytes, gctime = timed.gctime))
+                                    close(io)
+                                end
                             end
-                        end
                         """
 
                         testcode = read(file, String)
-                        modified_testcode = replace(
-                            testcode,
-                            r"#\s+(\w[\w ]*\w)\s+@timed" => s"@_timed \"\1\""
-                        )
 
-                        fullcode = join([basecode, modified_testcode], "\n")
+                        fullcode = join([basecode, testcode], "\n")
 
                         path, io = mktemp()
                         open(path, "w") do file
