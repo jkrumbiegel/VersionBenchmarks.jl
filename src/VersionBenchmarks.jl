@@ -66,8 +66,11 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
                     macro _timed(name, expr)
                         quote
                             io = open("$resultpath", "a")
+                            @timed 1 + 1
+                            tstart = time_ns()
                             timed = @timed(\$(esc(expr)))
-                            println(io, (name = \$name, time = timed.time, allocations = timed.bytes, gctime = timed.gctime))
+                            dt = (time_ns() - tstart) / 1_000_000_000
+                            println(io, (name = \$name, time = dt, timedtime = timed.time, allocations = timed.bytes, gctime = timed.gctime))
                             close(io)
                         end
                     end
