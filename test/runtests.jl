@@ -2,5 +2,10 @@ using VersionBenchmarks
 using Test
 
 @testset "VersionBenchmarks.jl" begin
-    # Write your tests here.
+    df = VersionBenchmarks.benchmark(
+        joinpath(@__DIR__, "TestRepo"),
+        [joinpath(@__DIR__, "test.jl")],
+        ["master", "optimizations"],
+        repetitions = 10
+    )
 end

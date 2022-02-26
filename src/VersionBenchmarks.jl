@@ -12,6 +12,7 @@ function __init__()
 end
 
 run_without_std(cmd) = run(pipeline(cmd, stderr = devnull, stdout = devnull))
+# run_without_std(cmd) = run(cmd)
 
 function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVector{String};
         repetitions = 1,
@@ -40,7 +41,7 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
         for repetition in 1:repetitions
             @info "Repetition $repetition of $repetitions."
             for julia_exe in julia_exes
-                juliaversion = read(`$julia_exe -e 'print(VERSION)'`, String)
+                juliaversion = read(`$julia_exe --startup-file=no -e 'print(VERSION)'`, String)
                 @info "Julia version $juliaversion"
                 for version in versions
                     @info "Checking out \"$version\"."
@@ -57,6 +58,7 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
                     tmpenvdir = mktempdir()
 
                     code = """
+                    "@stdlib" ∉ LOAD_PATH && push!(LOAD_PATH, "@stdlib")
                     using Pkg
                     Pkg.activate("$tmpenvdir")
                     Pkg.offline(true) # avoid package changes along the runs
@@ -65,7 +67,7 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
                     """
 
                     @info "Preparing Julia environment."
-                    run_without_std(`$julia_exe -e $code`)
+                    run_without_std(`$julia_exe --startup-file=no -e $code`)
 
                     for file in files
 
@@ -74,6 +76,7 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
                         resultpath, resultio = mktemp()
 
                         basecode = """
+                            "@stdlib" ∉ LOAD_PATH && push!(LOAD_PATH, "@stdlib")
                             using Pkg
                             Pkg.activate("$tmpenvdir")
 
@@ -101,7 +104,7 @@ function benchmark(devdir, files::AbstractVector{String}, versions::AbstractVect
                         end
 
                         # execute the modified code, this should write results to the temp file at `resultpath`
-                        run_without_std(`$julia_exe $path`)
+                        run_without_std(`$julia_exe --startup-file=no $path`)
 
                         for line in readlines(resultpath)
                             # the file should only have lines with serialized NamedTuples
