@@ -46,7 +46,7 @@ function benchmark(configs::Vector{Config}, files::AbstractVector{String};
         devdir = path
     else
         devdir = mktempdir()
-        run(`git clone $url $devdir`)
+        _run(`git clone $url $devdir`)
     end
     
     tmpdir = mktempdir()
