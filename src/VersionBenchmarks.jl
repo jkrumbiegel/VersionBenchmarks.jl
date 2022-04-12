@@ -123,8 +123,8 @@ function prepare_julia_environment(julia_cmd, tmpenvdir, pkgdir)
     using Pkg
     Pkg.UPDATED_REGISTRY_THIS_SESSION[] = true # avoid updating every time
     Pkg.activate("$tmpenvdir")
-    Pkg.add(path = "$pkgdir"; io = devnull, preserve = Pkg.PRESERVE_ALL) # preserve possibly existing manifest
-    Pkg.add("BenchmarkTools"; io = devnull, preserve = Pkg.PRESERVE_ALL)
+    Pkg.develop(path = "$pkgdir"; $(hide_output[] ? "io = devnull, " : "") preserve = Pkg.PRESERVE_ALL) # preserve possibly existing manifest
+    Pkg.add("BenchmarkTools"; $(hide_output[] ? "io = devnull, " : "") preserve = Pkg.PRESERVE_ALL)
     Pkg.precompile()
     """
 
