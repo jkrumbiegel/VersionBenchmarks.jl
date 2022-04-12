@@ -2,19 +2,17 @@
 
 A package to run benchmarks of different versions, branches, or commits of a repository against each other.
 
-Here's an example with the repository `TestRepo` included in the test folder of VersionBenchmarks:
-
 ```julia
 using VersionBenchmarks
 
-testpath(args...) = normpath(joinpath(pathof(VersionBenchmarks), "..", "..", "test", args...))
-
 df = VersionBenchmarks.benchmark(
-    testpath("TestRepo"),
-    [testpath("test.jl")],
-    ["optimizations", "master"], # vector of tags, branches or commits
+    [
+        Config("master"),
+        Config("optimizations"),
+    ],
+    path = path_to_repo,
+    testfile,
     repetitions = 10,
-    julia_exes = ["julia"] # optionally specify different julia commands for different versions
 )
 ```
 
@@ -33,9 +31,13 @@ end
 ```
 
 The `@vbtime` macros save timing, allocation and gctime info in a file.
+They are run in every repetition.
 The results are then passed back in a `DataFrame`.
 
-You can call these functions on it:
+You can also use `@vbbenchmark`, which is a wrapper for `BenchmarkTools.@benchmark`.
+It only runs on the first repetition, because it includes its own repetitions already.
+
+You can call these functions on the resulting DataFrame:
 
 ```julia
 VersionBenchmarks.summarize_repetitions(df)
