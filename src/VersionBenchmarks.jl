@@ -233,7 +233,8 @@ function summarize_repetitions(df)
     combine(gdf, :repetition => (x -> length(x)) => :n, [:time :allocations :gctime] .=> [mean, std, minimum, maximum])
 end
 
-function plot_summary(df, variable = :time)
+function plot_summary(df, variable = :time_s)
+    df = dropmissing(df, variable)
     plt = AoG.data(df) *
         AoG.mapping(
             :version, variable;
