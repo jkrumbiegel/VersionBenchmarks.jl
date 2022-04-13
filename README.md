@@ -5,14 +5,16 @@ A package to run benchmarks of different versions, branches, or commits of a rep
 ```julia
 using VersionBenchmarks
 
-df = VersionBenchmarks.benchmark(
+df = benchmark(
     [
-        # test master on default julia against an optimizations branch on julia nightly
-        # (`julia_nightly` is a hypothetical command, use one that's correct on your system)
-        Config("master", (path = path, rev = "master")),
-        Config("optimizations", (path = path, rev = "optimizations-branch"), `julia_nightly`),
+        Config("master", (name = "DataFrames", rev = "master")),
+        Config("1.0", (name = "DataFrames", version = "v1.0.0")),
+        Config("master", (name = "DataFrames", rev = "master"),
+            `/Applications/Julia-1.9.app/Contents/Resources/julia/bin/julia`),
+        Config("1.0", (name = "DataFrames", version = "v1.0.0"),
+            `/Applications/Julia-1.9.app/Contents/Resources/julia/bin/julia`),
     ],
-    testfile,
+    "dataframes.jl",
     repetitions = 10,
 )
 ```
@@ -21,15 +23,19 @@ A `Config` takes a name, a `NamedTuple` or `Vector{NamedTuple}` that serve as in
 
 Each test file is run once per repetition, with configs alternating so that the samples are spaced apart in time.
 
-An example test file could look like this:
+An example file, `dataframes.jl`, looks like this:
 
 ```julia
-@vbtime "using TestRepo" begin
-    using TestRepo
+@vbtime "using" begin
+    using DataFrames
 end
 
-@vbbenchmark "Heavy computation" begin
-    TestRepo.heavy_computation()
+@vbtime "first_df" begin
+    DataFrame(a = 1:10)
+end
+
+@vbbenchmark "DataFrame" begin
+    DataFrame()
 end
 ```
 
@@ -45,7 +51,7 @@ You can call these functions on the resulting DataFrame:
 
 ```julia
 VersionBenchmarks.summarize_repetitions(df)
-VersionBenchmarks.plot_summary(df [, :time]) # can change second arg to :allocations or :gctime
+VersionBenchmarks.plot_summary(df [, :time_s]) # can change second arg to :allocations or :gctime
 ```
 
 For example:
@@ -55,4 +61,11 @@ VersionBenchmarks.plot_summary(df)
 ```
 
 ![demo](demo.png)
+
+
+```julia
+VersionBenchmarks.plot_summary(df, :allocations)
+```
+
+![demo](demo_allocations.png)
 
