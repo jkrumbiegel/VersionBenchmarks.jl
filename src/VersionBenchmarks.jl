@@ -6,6 +6,7 @@ using Statistics: mean, std, median
 import AlgebraOfGraphics
 const AoG = AlgebraOfGraphics
 import CairoMakie
+import Pkg
 
 export Config
 export benchmark
@@ -25,42 +26,29 @@ function _run(cmd)
 end
 
 struct Config
-    version::String
+    name::String
+    pkgspecs::Vector{NamedTuple}
     julia::Cmd
 end
 
-Config(version) = Config(version, `julia`)
+Config(name, pkgspec::NamedTuple, julia) = Config(name, [pkgspec], julia)
+Config(name, pkgspecs) = Config(name, pkgspecs, `julia`)
 
 benchmark(configs, file::String; kwargs...) = benchmark(configs, [file]; kwargs...)
 
 function benchmark(configs::Vector{Config}, files::AbstractVector{String};
-        repetitions = 1,
-        path = nothing,
-        url = nothing,
+        repetitions = 1
     )
 
-    if (path !== nothing && url !== nothing) || (path === nothing && url === nothing)
-        throw(ArgumentError("path and url can't both be set or both be unset."))
-    end
-    if path !== nothing
-        devdir = path
-    else
-        devdir = mktempdir()
-        _run(`git clone $url $devdir`)
-    end
-    
     tmpdir = mktempdir()
 
     df = DataFrame()
 
     date = now()
 
-    try
-        @info "Copying repository to temp directory."
-        pkgdir = joinpath(tmpdir, "package")
-        cp(devdir, pkgdir)
-        @info "Directory copied."
+    tmpdir_dict = Dict()
 
+    try
         # repetition should be the outer loop so that neither julia version nor code
         # version is blocked in time, which should give better robustness against
         # performance fluctuations of the system over time
@@ -68,32 +56,21 @@ function benchmark(configs::Vector{Config}, files::AbstractVector{String};
             @info "Repetition $repetition of $repetitions."
             for config in configs
                 julia_cmd = config.julia
-                version = config.version
                 julia_version = get_julia_version(julia_cmd)
                 @info "Julia version $julia_version"
-                @info "Checking out \"$version\"."
 
-                checkout_version(pkgdir, version)
-                
-                commit_date = get_commit_date(pkgdir)
-                commit = get_commit(pkgdir)
-
-                # create a directory for the environment in which to install the version
-                tmpenvdir = mktempdir()
-
-                prepare_julia_environment(julia_cmd, tmpenvdir, pkgdir)
+                tmpenvdir = prepare_julia_environment(config, tmpdir_dict)
 
                 for file in files
                     time_of_run = now()
                     resultdf = execute_file(file, julia_cmd, tmpenvdir, repetition)
                     duration_of_run = now() - time_of_run
-                    resultdf.version .= version
+                    resultdf.config_name .= config.name
+                    resultdf.pkgspecs .= Ref(config.pkgspecs)
                     resultdf.file .= file
                     resultdf.date .= date
                     resultdf.time_of_run .= time_of_run
                     resultdf.duration_of_run .= duration_of_run
-                    resultdf.commit_date .= commit_date
-                    resultdf.commit .= commit
                     resultdf.repetition .= repetition
                     resultdf.julia_version .= julia_version
                     append!(df, resultdf, cols = :union)
@@ -109,27 +86,45 @@ function benchmark(configs::Vector{Config}, files::AbstractVector{String};
     return df
 end
 
-checkout_version(pkgdir, version) = _run(`git -C $pkgdir checkout -f $version --`) # -f to throw away possible changes
-
-get_commit(pkgdir) = strip(read(`git -C $pkgdir rev-parse --short HEAD`, String))
-get_commit_date(pkgdir) = DateTime(
-    strip(String(read(`git -C $pkgdir show -s --format=%ci`)))[1:end-6],
-    "yyyy-mm-dd HH:MM:SS")
 get_julia_version(julia_cmd) = read(`$julia_cmd --startup-file=no -e 'print(VERSION)'`, String)
 
-function prepare_julia_environment(julia_cmd, tmpenvdir, pkgdir)
-    code = """
-    "@stdlib" ∉ LOAD_PATH && push!(LOAD_PATH, "@stdlib")
-    using Pkg
-    Pkg.UPDATED_REGISTRY_THIS_SESSION[] = true # avoid updating every time
-    Pkg.activate("$tmpenvdir")
-    Pkg.develop(path = "$pkgdir"; $(hide_output[] ? "io = devnull, " : "") preserve = Pkg.PRESERVE_ALL) # preserve possibly existing manifest
-    Pkg.add("BenchmarkTools"; $(hide_output[] ? "io = devnull, " : "") preserve = Pkg.PRESERVE_ALL)
-    Pkg.precompile()
-    """
+function prepare_julia_environment(config, tmpdir_dict)
 
-    @info "Preparing Julia environment."
-    _run(`$julia_cmd --startup-file=no -e $code`)
+    if haskey(tmpdir_dict, config)
+        tmpenvdir = tmpdir_dict[config]
+        @info "Env $tmpenvdir already exists"
+
+        code = """
+        "@stdlib" ∉ LOAD_PATH && push!(LOAD_PATH, "@stdlib")
+        using Pkg
+        Pkg.UPDATED_REGISTRY_THIS_SESSION[] = true # avoid updating every time
+        Pkg.activate("$tmpenvdir")
+        Pkg.precompile()
+        """
+
+        @info "Preparing Julia environment."
+        _run(`$(config.julia) --startup-file=no -e $code`)
+    else
+        # create a directory for the environment in which to install the version
+        tmpenvdir = mktempdir()
+        tmpdir_dict[config] = tmpenvdir
+
+        specs = [config.pkgspecs; (;name = "BenchmarkTools")]
+        specstring = string(specs) # TODO: other way to transfer package specs to the new process?
+
+        code = """
+        "@stdlib" ∉ LOAD_PATH && push!(LOAD_PATH, "@stdlib")
+        using Pkg
+        Pkg.UPDATED_REGISTRY_THIS_SESSION[] = true # avoid updating every time
+        Pkg.activate("$tmpenvdir")
+        Pkg.add($specstring; $(hide_output[] ? "io = devnull, " : ""))
+        Pkg.precompile()
+        """
+
+        @info "Preparing Julia environment."
+        _run(`$(config.julia) --startup-file=no -e $code`)
+    end
+    return tmpenvdir
 end
 
 function execute_file(file, julia_cmd, tmpenvdir, repetition)
@@ -178,7 +173,7 @@ function get_basecode(tmpenvdir, resultpath, repetition)
             tstart = time_ns()
             timed = @timed(\$(esc(expr)))
             dt = (time_ns() - tstart) / 1_000_000_000
-            println(io, (type = "time", name = \$name, time_s = dt, allocations = timed.bytes, gctime = timed.gctime))
+            println(io, (type = "vbtime", name = \$name, time_s = dt, allocations = timed.bytes, gctime = timed.gctime))
             close(io)
         end
     end
@@ -191,9 +186,10 @@ function get_basecode(tmpenvdir, resultpath, repetition)
                 io = open("$resultpath", "a")
                 bm = BenchmarkTools.@benchmark \$(exprs...)
                 println(io, (
-                    type = "btime", 
+                    type = "vbbenchmark", 
                     name = \$name,
                     min_time_ns = minimum(bm.times),
+                    max_time_ns = maximum(bm.times),
                     median_time_ns = Statistics.median(bm.times),
                     mean_time_ns = Statistics.mean(bm.times),
                 ))
@@ -237,18 +233,19 @@ function plot_summary(df, variable = :time_s)
     df = dropmissing(df, variable)
     plt = AoG.data(df) *
         AoG.mapping(
-            :version, variable;
-            col = :name,
-            row = :julia_version => x -> "Julia $x",
+            :config_name, variable;
+            row = :name,
+            col = :julia_version => x -> "Julia $x",
         ) *
         (AoG.expectation() + AoG.visual(strokewidth = 1, strokecolor = :black, color = :transparent))
 
     AoG.draw(plt,
-        facet = (; linkyaxes = :none),
+        facet = (; linkyaxes = :minimal),
         axis = (;
             limits = (nothing, nothing, 0, nothing),
             xticklabelrotation = pi/6,
-        ))
+        ),
+    )
 end
 
 end
