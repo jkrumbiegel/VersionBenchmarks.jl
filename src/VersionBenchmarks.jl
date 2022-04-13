@@ -225,8 +225,8 @@ function comparison(df, reference_version = nothing)
 end
 
 function summarize_repetitions(df)
-    gdf = groupby(df, [:version, :name, :julia_version])
-    combine(gdf, :repetition => (x -> length(x)) => :n, [:time :allocations :gctime] .=> [mean, std, minimum, maximum])
+    gdf = groupby(df, [:config_name, :name, :julia_version])
+    combine(gdf, :repetition => (x -> length(x)) => :n, [:time_s :allocations :gctime] .=> [mean, std, minimum, maximum])
 end
 
 function plot_summary(df, variable = :time_s)
