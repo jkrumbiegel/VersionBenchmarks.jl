@@ -52,18 +52,30 @@ function benchmark(configs::Vector{Config}, files::AbstractVector{String};
         # repetition should be the outer loop so that neither julia version nor code
         # version is blocked in time, which should give better robustness against
         # performance fluctuations of the system over time
+        n_runs = repetitions * length(configs)
+        start = time()
+        i = 0
         for repetition in 1:repetitions
-            @info "Repetition $repetition of $repetitions."
-            for config in configs
+            for (iconfig, config) in enumerate(configs)
+                i += 1
                 julia_cmd = config.julia
                 julia_version = get_julia_version(julia_cmd)
-                @info "Julia version $julia_version"
+
+                println("""
+                    Repetition $repetition of $repetitions, config $iconfig of $(length(configs)).
+                     ├ Name: $(config.name)
+                     └ Julia: $julia_version""")
 
                 tmpenvdir = prepare_julia_environment(config, tmpdir_dict)
 
                 for file in files
                     time_of_run = now()
+                    
+                    print("   Executing \"$file\"...")
+                    t = time()
                     resultdf = execute_file(file, julia_cmd, tmpenvdir, repetition)
+                    println(" Done. ($(round(Int, time() - t))s)")
+
                     duration_of_run = now() - time_of_run
                     resultdf.config_name .= config.name
                     resultdf.pkgspecs .= Ref(config.pkgspecs)
@@ -75,6 +87,12 @@ function benchmark(configs::Vector{Config}, files::AbstractVector{String};
                     resultdf.julia_version .= julia_version
                     append!(df, resultdf, cols = :union)
                 end
+
+                elapsed = time() - start
+                estimated = elapsed / i * (n_runs - i)
+                println("   Time elapsed: $(round(Int, elapsed))s.")
+                println("   Estimated remaining: $(round(Int, estimated))s.")
+                println("   Estimated finish time: $(Dates.format(now() + Second(round(Int, estimated)), "HH:MM")).")
             end
         end
     catch e
@@ -89,10 +107,8 @@ end
 get_julia_version(julia_cmd) = read(`$julia_cmd --startup-file=no -e 'print(VERSION)'`, String)
 
 function prepare_julia_environment(config, tmpdir_dict)
-
     if haskey(tmpdir_dict, config)
         tmpenvdir = tmpdir_dict[config]
-        @info "Env $tmpenvdir already exists"
 
         code = """
         "@stdlib" ∉ LOAD_PATH && push!(LOAD_PATH, "@stdlib")
@@ -101,9 +117,6 @@ function prepare_julia_environment(config, tmpdir_dict)
         Pkg.activate("$tmpenvdir")
         Pkg.precompile()
         """
-
-        @info "Preparing Julia environment."
-        _run(`$(config.julia) --startup-file=no -e $code`)
     else
         # create a directory for the environment in which to install the version
         tmpenvdir = mktempdir()
@@ -120,16 +133,15 @@ function prepare_julia_environment(config, tmpdir_dict)
         Pkg.add($specstring; $(hide_output[] ? "io = devnull, " : ""))
         Pkg.precompile()
         """
-
-        @info "Preparing Julia environment."
-        _run(`$(config.julia) --startup-file=no -e $code`)
     end
+    print("   Preparing Julia environment...")
+    t = time()
+    _run(`$(config.julia) --startup-file=no -e $code`)
+    println(" Done. ($(round(Int, time() - t))s)")
     return tmpenvdir
 end
 
 function execute_file(file, julia_cmd, tmpenvdir, repetition)
-    @info "Executing file \"$file\"."
-
     resultpath, resultio = mktemp()
 
     basecode = get_basecode(tmpenvdir, resultpath, repetition)
