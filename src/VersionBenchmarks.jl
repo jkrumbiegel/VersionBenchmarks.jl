@@ -185,7 +185,7 @@ function get_basecode(tmpenvdir, resultpath, repetition)
             tstart = time_ns()
             timed = @timed(\$(esc(expr)))
             dt = (time_ns() - tstart) / 1_000_000_000
-            println(io, (type = "vbtime", name = \$name, time_s = dt, allocations = timed.bytes, gctime = timed.gctime))
+            println(io, (type = "vbtime", name = \$name, time_s = dt, alloc_bytes = timed.bytes, gctime_s = timed.gctime))
             close(io)
         end
     end
@@ -212,33 +212,9 @@ function get_basecode(tmpenvdir, resultpath, repetition)
 """
 end
 
-function comparison(df, reference_version = nothing)
-    df2 = select(df, ["version", "repetition", "name", "time", "allocations", "gctime"])
-    df3 = combine(
-        groupby(df2, ["version", "name"]),
-        ["time", "allocations", "gctime"] .=> mean,
-        renamecols = false
-    )
-    reference_version = something(reference_version, first(df3.version))
-
-    function normalize(versions, values)
-        i = findfirst(==(reference_version), versions)
-        values ./ values[i]
-    end
-
-    sort(
-        transform(
-            groupby(df3, :name),
-            vcat.(:version, [:time, :allocations, :gctime]) .=> normalize .=>
-                [:time, :allocations, :gctime]
-        ),
-        :name
-    )
-end
-
 function summarize_repetitions(df)
     gdf = groupby(df, [:config_name, :name, :julia_version])
-    combine(gdf, :repetition => (x -> length(x)) => :n, [:time_s :allocations :gctime] .=> [mean, std, minimum, maximum])
+    combine(gdf, :repetition => (x -> length(x)) => :n, [:time_s :alloc_bytes :gctime_s] .=> [mean, std, minimum, maximum])
 end
 
 function plot_summary(df, variable = :time_s)
