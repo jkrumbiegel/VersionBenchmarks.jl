@@ -3,6 +3,7 @@
 A package to run benchmarks of different versions, branches, or commits of packages against each other on multiple Julia versions.
 
 It is especially useful for measuring time to first plot (TTFP) or `using` latency of packages, because these can only be measured once per Julia session.
+VersionBenchmarks.jl runs each code file multiple times with a fresh Julia process for each run.
 
 Here is a simple example testing latest `master` against `v1.0.0` for the DataFrames package, once for the default `julia` command and once with Julia 1.9.
 
