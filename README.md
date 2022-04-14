@@ -26,7 +26,7 @@ df = benchmark(
 
 The `Config` struct has three arguments.
 1. A name that summarizes the packages being used.
-2. A `NamedTuple` or a `Vector{NamedTuple}` (if multiple different packages should be tested together) that serve as input arguments for `Pkg.PackageSpec`s which should be installed. Typical keys are `name`, `url`, `path`, `rev`, `version` and `subdir`. For example, to use a local repository where you want to check a specific commit with hash `"a7e55f3"`, you could use `(path = path/to/repo, rev = "a7e55f3")`.
+2. A `NamedTuple` or a `Vector{NamedTuple}` (if multiple different packages should be tested together) that serve as input arguments for `Pkg.PackageSpec`s which should be installed. Typical keys are `name`, `url`, `path`, `rev`, `version` and `subdir`. For example, to use a local repository where you want to check a specific commit with hash `"a7e55f3"`, you could use `(path = "path/to/repo", rev = "a7e55f3")`.
 3. Optionally, a command to run Julia (`julia` by default).
 
 You can supply one code file or a vector of code files.
