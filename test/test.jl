@@ -1,7 +1,12 @@
-@vbtime "using TestRepo" begin
-    using TestRepo
+@vbtime "using Colors" begin
+    using Colors
 end
 
-@vbtime "Heavy computation" begin
-    TestRepo.heavy_computation()
+function rgbatuple(c::Colorant)
+    rgba = RGBA(c)
+    return (red(rgba), green(rgba), blue(rgba), alpha(rgba))
+end
+
+@vbtime "Call function" begin
+    rgbatuple(HSV(0.1, 0.2, 0.3))
 end
